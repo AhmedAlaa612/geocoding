@@ -3,6 +3,7 @@ import routes from "./routes";
 import openApiSpec from "./openapi";
 
 const app = express();
+app.set("trust proxy", true);
 
 const SWAGGER_HTML = `<!doctype html>
 <html lang="en">
@@ -30,8 +31,20 @@ app.use(express.json());
 
 app.use("/", routes);
 
-app.get("/openapi.json", (_req: Request, res: Response) => {
-  res.json(openApiSpec);
+app.get("/openapi.json", (req: Request, res: Response) => {
+  const host = req.get("host");
+  const protocol = req.protocol;
+  const serverUrl = host ? `${protocol}://${host}` : "http://localhost:3000";
+
+  res.json({
+    ...openApiSpec,
+    servers: [
+      {
+        url: serverUrl,
+        description: "Current deployment",
+      },
+    ],
+  });
 });
 
 app.get("/docs", (_req: Request, res: Response) => {
