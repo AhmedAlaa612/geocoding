@@ -1,10 +1,4 @@
-/**
- * Decode HTML entities in a string (e.g. &#1605; → م).
- * The library returns HTML-encoded strings in some locales/languages,
- * so we decode them before sending JSON responses.
- */
-
-import { Location } from "@aashari/nodejs-geocoding/dist/location.interface";
+import { Location } from "../lib/nodejs-geocoding/src/location.interface";
 
 export function decodeHtmlEntities(str: string): string {
   return str.replace(/&#(\d+);/g, (_, code: string) =>
@@ -12,7 +6,6 @@ export function decodeHtmlEntities(str: string): string {
   );
 }
 
-/** Return a new Location with all string fields HTML-decoded. */
 export function decodeLocation(location: Location): Location {
   return {
     ...location,
@@ -24,4 +17,26 @@ export function decodeLocation(location: Location): Location {
       : location.google_plus_code,
   };
 }
- 
+
+export const ALEXANDRIA_BOUNDS = {
+  minLat: 30.85,
+  maxLat: 31.42,
+  minLng: 29.52,
+  maxLng: 30.25,
+} as const;
+
+export const ALEXANDRIA_CENTER = {
+  lat: 31.2001,
+  lng: 29.9187,
+};
+
+export function isInAlexandria(location: { latitude?: number; longitude?: number }): boolean {
+  const { latitude, longitude } = location;
+  if (latitude === undefined || longitude === undefined) return false;
+  return (
+    latitude  >= ALEXANDRIA_BOUNDS.minLat &&
+    latitude  <= ALEXANDRIA_BOUNDS.maxLat &&
+    longitude >= ALEXANDRIA_BOUNDS.minLng &&
+    longitude <= ALEXANDRIA_BOUNDS.maxLng
+  );
+}

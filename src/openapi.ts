@@ -33,6 +33,27 @@ const openApiSpec = {
             schema: { type: "string", default: "en" },
             description: "BCP-47 language code",
           },
+          {
+            name: "bias",
+            in: "query",
+            required: false,
+            schema: { type: "string", enum: ["true", "false"], default: "true" },
+            description: "Restrict results to Alexandria. Set to false to search globally.",
+          },
+          {
+            name: "user_lat",
+            in: "query",
+            required: false,
+            schema: { type: "number" },
+            description: "User's latitude for proximity-aware ranking within Alexandria.",
+          },
+          {
+            name: "user_lng",
+            in: "query",
+            required: false,
+            schema: { type: "number" },
+            description: "User's longitude for proximity-aware ranking within Alexandria.",
+          },
         ],
         responses: {
           "200": {
@@ -112,6 +133,13 @@ const openApiSpec = {
             schema: { type: "string", default: "en" },
             description: "BCP-47 language code",
           },
+          {
+            name: "bias",
+            in: "query",
+            required: false,
+            schema: { type: "string", enum: ["true", "false"], default: "true" },
+            description: "Reject coordinates outside Alexandria. Set to false to allow global coordinates.",
+          }
         ],
         responses: {
           "200": {

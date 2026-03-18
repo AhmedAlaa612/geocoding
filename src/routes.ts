@@ -1,129 +1,109 @@
 import { Router, Request, Response } from "express";
-import * as geocoding from "@aashari/nodejs-geocoding";
+import { decode } from "../lib/nodejs-geocoding/src/index";
 import { ApiResponse } from "./types";
-import { decodeLocation } from './utils';
+import { decodeLocation, isInAlexandria } from "./utils";
+import { geocodeWithBias } from "./geocode";
+
 const router = Router();
 
 /**
  * GET /geocode
- * Convert an address to geographic coordinates.
- *
  * Query params:
- *   address  (required) - The address to geocode, e.g. "Empire State Building, New York"
- *   language (optional) - BCP-47 language code, defaults to "en"
- *
- * Example: GET /geocode?address=Eiffel+Tower&language=fr
+ *   address   (required)
+ *   language  (optional) default: "en"
+ *   bias      (optional) default: "true" — restrict to Alexandria
+ *   user_lat  (optional) — user's latitude for proximity ranking
+ *   user_lng  (optional) — user's longitude for proximity ranking
  */
 router.get("/geocode", async (req: Request, res: Response) => {
-  const address =
-    typeof req.query.address === "string" ? req.query.address : "";
-  const language =
-    typeof req.query.language === "string" ? req.query.language : "en";
+  const address = typeof req.query.address === "string" ? req.query.address : "";
+  const language = typeof req.query.language === "string" ? req.query.language : "en";
+  const biasAlexandria = req.query.bias !== "false";
+
+  const rawUserLat = typeof req.query.user_lat === "string" ? req.query.user_lat : undefined;
+  const rawUserLng = typeof req.query.user_lng === "string" ? req.query.user_lng : undefined;
 
   if (!address || address.trim() === "") {
-    const response: ApiResponse<null> = {
-      success: false,
-      error: "Missing required query parameter: address",
-    };
-    return res.status(400).json(response);
+    return res.status(400).json({ success: false, error: "Missing required query parameter: address" });
+  }
+
+  let userLat: number | undefined;
+  let userLng: number | undefined;
+
+  if (rawUserLat !== undefined && rawUserLng !== undefined) {
+    userLat = parseFloat(rawUserLat);
+    userLng = parseFloat(rawUserLng);
+    if (isNaN(userLat) || isNaN(userLng)) {
+      return res.status(400).json({ success: false, error: "user_lat and user_lng must be valid numbers" });
+    }
   }
 
   try {
-    const results = await geocoding.encode(address.trim(), language);
+    const results = await geocodeWithBias(address.trim(), language, biasAlexandria, userLat, userLng);
 
     if (!results || results.length === 0) {
-      const response: ApiResponse<null> = {
+      return res.status(404).json({
         success: false,
-        error: `No results found for address: "${address}"`,
-      };
-      return res.status(404).json(response);
+        error: `No results found${biasAlexandria ? " within Alexandria" : ""} for: "${address}"${biasAlexandria ? ". Use ?bias=false to search globally." : ""}`,
+      });
     }
 
-    const response: ApiResponse<typeof results> = {
-      success: true,
-      data: results.map(decodeLocation),
-    };
+    const response: ApiResponse<typeof results> = { success: true, data: results };
     return res.status(200).json(response);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Geocoding failed";
-    const response: ApiResponse<null> = { success: false, error: message };
-    return res.status(500).json(response);
+    return res.status(500).json({ success: false, error: message });
   }
 });
 
 /**
  * GET /reverse
- * Convert geographic coordinates to a human-readable address.
- *
  * Query params:
- *   lat      (required) - Latitude,  e.g. 40.7484
- *   lng      (required) - Longitude, e.g. -73.9857
- *   language (optional) - BCP-47 language code, defaults to "en"
- *
- * Example: GET /reverse?lat=40.7484&lng=-73.9857
+ *   lat      (required)
+ *   lng      (required)
+ *   language (optional) default: "en"
+ *   bias     (optional) default: "true" — reject coords outside Alexandria
  */
 router.get("/reverse", async (req: Request, res: Response) => {
   const lat = typeof req.query.lat === "string" ? req.query.lat : "";
   const lng = typeof req.query.lng === "string" ? req.query.lng : "";
-  const language =
-    typeof req.query.language === "string" ? req.query.language : "en";
+  const language = typeof req.query.language === "string" ? req.query.language : "en";
+  const biasAlexandria = req.query.bias !== "false";
 
   if (!lat || !lng) {
-    const response: ApiResponse<null> = {
-      success: false,
-      error: "Missing required query parameters: lat and lng",
-    };
-    return res.status(400).json(response);
+    return res.status(400).json({ success: false, error: "Missing required query parameters: lat and lng" });
   }
 
   const latitude = parseFloat(lat);
   const longitude = parseFloat(lng);
 
   if (isNaN(latitude) || isNaN(longitude)) {
-    const response: ApiResponse<null> = {
-      success: false,
-      error: "lat and lng must be valid numbers",
-    };
-    return res.status(400).json(response);
+    return res.status(400).json({ success: false, error: "lat and lng must be valid numbers" });
   }
-
   if (latitude < -90 || latitude > 90) {
-    const response: ApiResponse<null> = {
-      success: false,
-      error: "lat must be between -90 and 90",
-    };
-    return res.status(400).json(response);
+    return res.status(400).json({ success: false, error: "lat must be between -90 and 90" });
   }
-
   if (longitude < -180 || longitude > 180) {
-    const response: ApiResponse<null> = {
+    return res.status(400).json({ success: false, error: "lng must be between -180 and 180" });
+  }
+  if (biasAlexandria && !isInAlexandria({ latitude, longitude })) {
+    return res.status(400).json({
       success: false,
-      error: "lng must be between -180 and 180",
-    };
-    return res.status(400).json(response);
+      error: `Coordinates (${latitude}, ${longitude}) are outside Alexandria. Use ?bias=false to search globally.`,
+    });
   }
 
   try {
-    const result = await geocoding.decode(latitude, longitude, language);
+    const result = await decode(latitude, longitude, language);
 
     if (!result) {
-      const response: ApiResponse<null> = {
-        success: false,
-        error: `No address found for coordinates: (${latitude}, ${longitude})`,
-      };
-      return res.status(404).json(response);
+      return res.status(404).json({ success: false, error: `No address found for coordinates: (${latitude}, ${longitude})` });
     }
 
-    const response: ApiResponse<typeof result> = {
-      success: true,
-      data: result,
-    };
-    return res.status(200).json(response);
+    return res.status(200).json({ success: true, data: decodeLocation(result) });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Reverse geocoding failed";
-    const response: ApiResponse<null> = { success: false, error: message };
-    return res.status(500).json(response);
+    const message = err instanceof Error ? err.message : "Reverse geocoding failed";
+    return res.status(500).json({ success: false, error: message });
   }
 });
 
