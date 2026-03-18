@@ -25,11 +25,6 @@ export const ALEXANDRIA_BOUNDS = {
   maxLng: 30.25,
 } as const;
 
-export const ALEXANDRIA_CENTER = {
-  lat: 31.2001,
-  lng: 29.9187,
-};
-
 export function isInAlexandria(location: { latitude?: number; longitude?: number }): boolean {
   const { latitude, longitude } = location;
   if (latitude === undefined || longitude === undefined) return false;
