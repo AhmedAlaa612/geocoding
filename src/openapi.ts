@@ -4,7 +4,7 @@ const openApiSpec = {
     title: "Geocoding API",
     version: "1.0.0",
     description:
-      "REST API for forward and reverse geocoding using @aashari/nodejs-geocoding.",
+      "REST API for forward and reverse geocoding using Google maps",
   },
   servers: [
     {
